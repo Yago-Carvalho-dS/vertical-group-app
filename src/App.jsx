@@ -92,6 +92,28 @@ const PENDING_EVALUATIONS = {
   ]
 };
 
+// --- DADOS MOCKADOS (Resultados Consolidados) ---
+
+const COMPLETED_EVALUATIONS = {
+  // O ID '1' corresponde ao João Silva
+  '1': {
+    name: 'João Silva (Soldador)',
+    evaluations: [
+      { from: 'supervisor', type: 'sup_to_liderado', score: 92.5 },
+      { from: 'base', type: 'base_depts', score: 78.0 },
+      // Adicionar mais avaliações de pares (360) se necessário.
+    ],
+  },
+   '50': {
+    name: 'Carlos (Supervisor)',
+    evaluations: [
+      { from: 'liderado', type: 'liderado_to_sup', score: 88.0 },
+      { from: 'coord_terra', type: 'coord_to_sup', score: 95.0 },
+    ],
+  }
+};
+
+
 // --- COMPONENTES ---
 
 const Sidebar = ({ activeTab, setActiveTab, userRole, onLogout }) => (
@@ -260,6 +282,89 @@ const EvaluationForm = ({ target, onBack }) => {
   );
 };
 
+const Dashboard = ({ userRole }) => {
+  // Apenas gestores e supervisores podem ver o dashboard completo.
+  if (userRole !== 'gestor_base' && userRole !== 'supervisor') {
+    return (
+      <div className="bg-white p-10 rounded-xl text-center shadow-sm">
+        <LayoutDashboard className="mx-auto text-slate-300 mb-4" size={48}/>
+        <h3 className="text-lg font-bold text-slate-700">Acesso Restrito</h3>
+        <p className="text-slate-500">O dashboard consolidado está disponível apenas para gestores.</p>
+      </div>
+    );
+  }
+
+  // Lógica de cálculo da média
+  const processedData = Object.entries(COMPLETED_EVALUATIONS).map(([id, userData]) => {
+    const supEval = userData.evaluations.find(e => e.type === 'sup_to_liderado');
+    const baseEval = userData.evaluations.find(e => e.type === 'base_depts');
+    
+    let average = null;
+    if (supEval && baseEval) {
+      average = (supEval.score + baseEval.score) / 2;
+    } else if (supEval) {
+      average = supEval.score; // Se só tiver sup, a média é a própria nota
+    } else if (baseEval) {
+      average = baseEval.score; // Se só tiver base, a média é a própria nota
+    }
+
+    return {
+      id,
+      name: userData.name,
+      supScore: supEval ? supEval.score : null,
+      baseScore: baseEval ? baseEval.score : null,
+      average: average ? parseFloat(average.toFixed(1)) : null
+    };
+  }).filter(data => data.average !== null);
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-300">
+      <div className="p-6 border-b border-slate-100">
+        <h3 className="font-bold text-slate-700">Resultados Consolidados</h3>
+        <p className="text-sm text-slate-500">Análise de desempenho com a média entre Bordo e Base.</p>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {processedData.map((user) => (
+          <div key={user.id} className="p-4 grid grid-cols-4 items-center gap-4">
+            <div className="col-span-2 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">
+                {user.name.charAt(0)}
+              </div>
+              <div>
+                <p className="font-bold text-slate-800">{user.name}</p>
+                <p className="text-xs text-slate-500">ID: {user.id}</p>
+              </div>
+            </div>
+            
+            <div className="text-center">
+              <p className="text-xs text-slate-400">Bordo → Liderado</p>
+              <p className="font-mono text-lg font-bold text-blue-600">{user.supScore ? `${user.supScore}%` : 'N/A'}</p>
+            </div>
+
+            <div className="text-center">
+              <p className="text-xs text-slate-400">Base (Depts)</p>
+              <p className="font-mono text-lg font-bold text-green-600">{user.baseScore ? `${user.baseScore}%` : 'N/A'}</p>
+            </div>
+            
+            {/* A NOVA PORCENTAGEM */}
+            <div className="col-span-4 border-t border-slate-200 mt-2 pt-4 flex justify-end items-center gap-6 text-center">
+               <div className="text-right">
+                 <p className="text-sm font-bold text-slate-700">Média Final Ponderada</p>
+                 <p className="text-xs text-slate-500">Média das avaliações Bordo e Base</p>
+               </div>
+               <div className="px-4 py-2 rounded-lg bg-yellow-100 text-yellow-800 border-yellow-200 border">
+                  <span className="text-3xl font-black">{user.average}%</span>
+               </div>
+            </div>
+
+          </div>
+        ))}
+        {processedData.length === 0 && <div className="p-8 text-center text-slate-400">Nenhum dado consolidado para exibir.</div>}
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [userRole, setUserRole] = useState(null);
   const [activeTab, setActiveTab] = useState('list');
@@ -309,7 +414,7 @@ export default function App() {
               </div>
             </button>
           </div>
-          <p className="text-center text-xs text-slate-400 mt-8">© 2025 Vertical Group Engineering. v3.1 Beta</p>
+          <p className="text-center text-xs text-slate-400 mt-8">© 2025 Vertical Group Engineering. v3.1.1 Beta</p>
         </div>
       </div>
     );
@@ -334,11 +439,7 @@ export default function App() {
         </header>
 
         {activeTab === 'dashboard' ? (
-           <div className="bg-white p-10 rounded-xl text-center shadow-sm">
-             <PieChart className="mx-auto text-slate-300 mb-4" size={48}/>
-             <h3 className="text-lg font-bold text-slate-700">Dashboard em Construção</h3>
-             <p className="text-slate-500">Esta visão será personalizada para o perfil {userRole}.</p>
-           </div>
+           <Dashboard userRole={userRole} />
         ) : selectedEvaluation ? (
            <EvaluationForm target={selectedEvaluation} onBack={() => setSelectedEvaluation(null)} />
         ) : (
